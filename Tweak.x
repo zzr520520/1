@@ -464,7 +464,7 @@
     cell.detailTextLabel.text = [NSString stringWithFormat:@"ID: %@  (点击弹窗加好友)", model.userId];
     
     // 异步加载海鸥 OSS 头像 (https://zd.oss.haiouchat.com/...)
-    cell.imageView.image = [UIImage systemBlueColor]; // 占位
+    cell.imageView.image = [UIImage new]; // 占位
     if (model.avatarUrl.length > 0) {
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             NSData *imgData = [NSData dataWithContentsOfURL:[NSURL URLWithString:model.avatarUrl]];
