@@ -419,3 +419,105 @@
         NSLog(@"========================================");
     }
 }
+
+
+// =========================================================================
+// 悬浮窗模块 (Floating Window)
+// =========================================================================
+
+@interface FloatingWindowMgr : NSObject
+@property (nonatomic, strong) UIWindow *floatWindow;
+@property (nonatomic, strong) UIButton *floatBtn;
+@end
+
+@implementation FloatingWindowMgr
+
++ (instancetype)shared {
+    static FloatingWindowMgr *instance = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        instance = [[FloatingWindowMgr alloc] init];
+    });
+    return instance;
+}
+
+- (void)showFloatingButton {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.floatWindow) return;
+
+        // 创建一个独立的顶层 Window，确保不会被任何原生的 UI 遮挡
+        self.floatWindow = [[UIWindow alloc] initWithFrame:CGRectMake(20, 150, 60, 60)];
+        self.floatWindow.windowLevel = UIWindowLevelAlert + 1000;
+        self.floatWindow.backgroundColor = [UIColor clearColor];
+        self.floatWindow.hidden = NO;
+
+        // 创建悬浮按钮
+        self.floatBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+        self.floatBtn.frame = self.floatWindow.bounds;
+        self.floatBtn.backgroundColor = [UIColor systemBlueColor];
+        [self.floatBtn setTitle:@"自动添加" forState:UIControlStateNormal];
+        [self.floatBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        self.floatBtn.titleLabel.font = [UIFont boldSystemFontOfSize:11];
+        self.floatBtn.layer.cornerRadius = 30;
+        self.floatBtn.layer.shadowColor = [UIColor blackColor].CGColor;
+        self.floatBtn.layer.shadowOffset = CGSizeMake(0, 2);
+        self.floatBtn.layer.shadowOpacity = 0.4;
+
+        // 绑定点击事件：唤出你的自动添加控制器
+        [self.floatBtn addTarget:self action:@selector(onFloatBtnClick) forControlEvents:UIControlEventTouchUpInside];
+
+        // 添加拖拽手势
+        UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
+        [self.floatBtn addGestureRecognizer:pan];
+
+        [self.floatWindow addSubview:self.floatBtn];
+    });
+}
+
+- (void)onFloatBtnClick {
+    // 获取当前最上层的 UIViewController 并弹出你的控制面板
+    UIViewController *topVC = [self currentTopViewController];
+    if (topVC) {
+        // 弹出前面提供的群成员自动添加控制器
+        UIViewController *autoAddVC = [[NSClassFromString(@"AutoAddManagerController") alloc] init];
+        if (autoAddVC) {
+            UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:autoAddVC];
+            nav.modalPresentationStyle = UIModalPresentationPageSheet;
+            [topVC presentViewController:nav animated:YES completion:nil];
+        }
+    }
+}
+
+- (void)handlePan:(UIPanGestureRecognizer *)pan {
+    CGPoint translation = [pan translationInView:self.floatWindow];
+    CGPoint center = self.floatWindow.center;
+    self.floatWindow.center = CGPointMake(center.x + translation.x, center.y + translation.y);
+    [pan setTranslation:CGPointZero inView:self.floatWindow];
+}
+
+- (UIViewController *)currentTopViewController {
+    UIWindow *keyWindow = nil;
+    for (UIWindow *window in [UIApplication sharedApplication].windows) {
+        if (window.isKeyWindow) {
+            keyWindow = window;
+            break;
+        }
+    }
+    UIViewController *result = keyWindow.rootViewController;
+    while (result.presentedViewController) {
+        result = result.presentedViewController;
+    }
+    if ([result isKindOfClass:[UINavigationController class]]) {
+        result = [(UINavigationController *)result topViewController];
+    }
+    return result;
+}
+
+@end
+
+// 在动态库加载时自动触发悬浮窗显示
+%ctor {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [[FloatingWindowMgr shared] showFloatingButton];
+    });
+}
